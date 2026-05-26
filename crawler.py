@@ -15,8 +15,8 @@ HEADERS = {
 }
 
 REQUEST_DELAY = 0.5
-MAX_PAGES = 500
-MAX_PDFS = 1000
+MAX_PAGES = 150
+MAX_PDFS = 300
 
 
 def normalise_url(url):
@@ -55,13 +55,24 @@ def looks_like_possible_file(url):
 def check_pdf_link(url):
     if url.lower().split("?")[0].endswith(".pdf"):
         try:
-            response = requests.head(url, headers=HEADERS, timeout=15, allow_redirects=True)
+            response = requests.head(
+                url,
+                headers=HEADERS,
+                timeout=15,
+                allow_redirects=True
+            )
             return True, response.status_code, response.url, response.headers.get("Content-Type", "")
         except Exception:
             return True, "", url, ""
 
     try:
-        response = requests.head(url, headers=HEADERS, timeout=15, allow_redirects=True)
+        response = requests.head(
+            url,
+            headers=HEADERS,
+            timeout=15,
+            allow_redirects=True
+        )
+
         content_type = response.headers.get("Content-Type", "").lower()
 
         if "application/pdf" in content_type:
@@ -75,6 +86,7 @@ def check_pdf_link(url):
                 allow_redirects=True,
                 stream=True
             )
+
             content_type = response.headers.get("Content-Type", "").lower()
 
             if "application/pdf" in content_type:
@@ -125,8 +137,9 @@ def download_pdf(pdf_url, output_folder):
     response = requests.get(
         pdf_url,
         headers=HEADERS,
-        timeout=30,
-        allow_redirects=True
+        timeout=60,
+        allow_redirects=True,
+        stream=True
     )
     response.raise_for_status()
 
@@ -136,7 +149,9 @@ def download_pdf(pdf_url, output_folder):
         return "", 0, response.status_code, response.url, f"skipped - not pdf, content-type: {content_type}"
 
     with open(filepath, "wb") as f:
-        f.write(response.content)
+        for chunk in response.iter_content(chunk_size=1024 * 1024):
+            if chunk:
+                f.write(chunk)
 
     return final_filename, os.path.getsize(filepath), response.status_code, response.url, "downloaded"
 
@@ -214,6 +229,7 @@ def save_excel_log(records, excel_path):
 
     ws.freeze_panes = "A2"
     ws.auto_filter.ref = ws.dimensions
+
     wb.save(excel_path)
 
 
@@ -224,7 +240,11 @@ def crawl_site(start_url, job_folder):
 
     pdf_folder = os.path.join(job_folder, "downloaded_pdfs")
     excel_path = os.path.join(job_folder, "pdf_download_log.xlsx")
-    zip_base = os.path.join(job_folder, "pdf_crawl_results")
+
+    zip_base = os.path.join(
+        os.path.dirname(job_folder),
+        "pdf_crawl_results_" + os.path.basename(job_folder)
+    )
 
     visited_pages = set()
     pages_to_visit = [start_url]
