@@ -14,7 +14,7 @@ HEADERS = {
     "User-Agent": "NSW Department PDF crawler - internal audit"
 }
 
-REQUEST_DELAY = 0.5
+REQUEST_DELAY = 0.1
 MAX_PAGES = 150
 MAX_PDFS = 300
 
