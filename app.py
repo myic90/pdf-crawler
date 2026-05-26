@@ -1,3 +1,4 @@
+import traceback
 import os
 import uuid
 import shutil
@@ -42,12 +43,11 @@ def index():
             start_url=landing_url,
             job_folder=job_folder
         )
+
     except Exception as e:
         shutil.rmtree(job_folder, ignore_errors=True)
-        return render_template(
-            "index.html",
-            error=f"Something went wrong: {e}"
-        )
+        print(traceback.format_exc())
+        return f"Server error: {e}", 500
 
     @after_this_request
     def cleanup(response):
