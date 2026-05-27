@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>NSW.GOV PDF Crawler</title>
+  <title>PDF Crawler</title>
 
   <style>
     body {
@@ -82,14 +82,22 @@
 </head>
 
 <body>
-  <h1>NSW.GOV PDF Crawler</h1>
+  <h1>PDF Crawler</h1>
 
   <h3>By Praveen Kumar</h3>
 
   <p>
-    Enter a landing page URL. Only nsw.gov.au urls are allowed. <br/> 
-    The tool will crawl child pages under that section, download PDFs, and return a ZIP containing the PDFs and an Excel audit log.
+    Enter a landing page URL. The tool will crawl child pages under that section, download PDFs, and return a ZIP containing the PDFs and an Excel audit log. <br/>
+    Please be patient as your crawl may take a while, especially with larger sections.
   </p>
+  <p>This web app uses Render's free to use plan. As a result, there are some usage limitations that come with this:</p>
+  <ul>
+    <li>Only nsw.gov.au urls are allowed.</li>
+    <li>The app is set to timeout at 5 minutes, so don't go crawling entire departments like all of NESA. If your crawl fails, narrow your scope to child pages.</li>
+    <li>Maximum downloadable pdfs are limited to 300. If your pages are very pdf heavy, again, narrow your scope to child pages.</li>
+    <li>Maximum pages of a pdf limited to 150. So extra large pdfs will not download.</li>
+    <li>It is likely that if more than 5 users are concurrently using the app, it won't work. So please try again later.</li>
+  </ul>
 
   <form id="crawlForm">
     <label for="landing_url">Landing page URL</label>
@@ -121,9 +129,7 @@
   <div id="errorBox" class="error"></div>
 
   <p class="hint">
-    P.S. This web app uses the Render's free to use plan. Please be patient as your crawl may take a while, especially with larger sections.
-    Also, maximum downloadable pdfs are limited to 300. So please don't crawl entire departments as the app will time out.<br/>
-    P.S.S. Maximum pages of a pdf limited to 150. So extra large pdfs will not download.
+    Originally developed for NESA staff for internal use.
   </p>
 
   <script>
