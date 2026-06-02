@@ -25,8 +25,7 @@ def normalise_url(url):
 
 
 def get_allowed_path_prefix(start_url):
-    parsed = urlparse(start_url)
-    return parsed.path.rstrip("/")
+    return urlparse(start_url).path.rstrip("/")
 
 
 def get_allowed_domain(start_url):
@@ -55,24 +54,13 @@ def looks_like_possible_file(url):
 def check_pdf_link(url):
     if url.lower().split("?")[0].endswith(".pdf"):
         try:
-            response = requests.head(
-                url,
-                headers=HEADERS,
-                timeout=15,
-                allow_redirects=True
-            )
+            response = requests.head(url, headers=HEADERS, timeout=15, allow_redirects=True)
             return True, response.status_code, response.url, response.headers.get("Content-Type", "")
         except Exception:
             return True, "", url, ""
 
     try:
-        response = requests.head(
-            url,
-            headers=HEADERS,
-            timeout=15,
-            allow_redirects=True
-        )
-
+        response = requests.head(url, headers=HEADERS, timeout=15, allow_redirects=True)
         content_type = response.headers.get("Content-Type", "").lower()
 
         if "application/pdf" in content_type:
@@ -169,12 +157,42 @@ def format_file_size(size_bytes):
     return f"{size_bytes / (1024 * 1024):.2f} MB"
 
 
-def save_excel_log(records, excel_path):
+def get_page_title(soup):
+    if soup.title and soup.title.string:
+        return soup.title.string.strip()
+
+    h1 = soup.find("h1")
+    if h1:
+        return h1.get_text(strip=True)
+
+    return ""
+
+
+def style_worksheet(ws):
+    header_fill = PatternFill("solid", fgColor="D9EAF7")
+    header_font = Font(bold=True)
+
+    for cell in ws[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(wrap_text=True)
+
+    for row in ws.iter_rows():
+        for cell in row:
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
+
+    ws.freeze_panes = "A2"
+    ws.auto_filter.ref = ws.dimensions
+
+
+def save_excel_log(pdf_records, crawled_pages, excel_path):
     wb = Workbook()
+
+    # Sheet 1: PDF audit
     ws = wb.active
     ws.title = "PDF audit"
 
-    headers = [
+    pdf_headers = [
         "Source Page",
         "PDF URL",
         "Final Resolved PDF URL",
@@ -187,18 +205,10 @@ def save_excel_log(records, excel_path):
         "File Size Bytes"
     ]
 
-    ws.append(headers)
+    ws.append(pdf_headers)
 
-    header_fill = PatternFill("solid", fgColor="D9EAF7")
-    header_font = Font(bold=True)
-
-    for cell in ws[1]:
-        cell.fill = header_fill
-        cell.font = header_font
-        cell.alignment = Alignment(wrap_text=True)
-
-    for record in records:
-        ws.append([record.get(header, "") for header in headers])
+    for record in pdf_records:
+        ws.append([record.get(header, "") for header in pdf_headers])
 
     for row in range(2, ws.max_row + 1):
         for col in [1, 2, 3]:
@@ -207,7 +217,7 @@ def save_excel_log(records, excel_path):
                 cell.hyperlink = cell.value
                 cell.style = "Hyperlink"
 
-    widths = {
+    pdf_widths = {
         "A": 60,
         "B": 70,
         "C": 70,
@@ -220,15 +230,48 @@ def save_excel_log(records, excel_path):
         "J": 18
     }
 
-    for col, width in widths.items():
+    for col, width in pdf_widths.items():
         ws.column_dimensions[col].width = width
 
-    for row in ws.iter_rows():
-        for cell in row:
-            cell.alignment = Alignment(vertical="top", wrap_text=True)
+    style_worksheet(ws)
 
-    ws.freeze_panes = "A2"
-    ws.auto_filter.ref = ws.dimensions
+    # Sheet 2: Crawled URLs
+    ws_pages = wb.create_sheet("Crawled URLs")
+
+    page_headers = [
+        "Page URL",
+        "HTTP Status",
+        "Page Title",
+        "PDFs Found On Page"
+    ]
+
+    ws_pages.append(page_headers)
+
+    for page in crawled_pages:
+        ws_pages.append([
+            page.get("Page URL", ""),
+            page.get("HTTP Status", ""),
+            page.get("Page Title", ""),
+            page.get("PDFs Found On Page", 0)
+        ])
+
+    for row in range(2, ws_pages.max_row + 1):
+        cell = ws_pages.cell(row=row, column=1)
+        if cell.value:
+            cell.hyperlink = cell.value
+            cell.style = "Hyperlink"
+
+    page_widths = {
+        "A": 80,
+        "B": 15,
+        "C": 60,
+        "D": 20
+    }
+
+    for col, width in page_widths.items():
+        ws_pages.column_dimensions[col].width = width
+
+    style_worksheet(ws_pages)
 
     wb.save(excel_path)
 
@@ -248,7 +291,9 @@ def crawl_site(start_url, job_folder):
 
     visited_pages = set()
     pages_to_visit = [start_url]
+
     pdf_records = []
+    crawled_pages = []
 
     seen_pdf_urls = set()
     pdf_first_seen_row = {}
@@ -279,9 +324,17 @@ def crawl_site(start_url, job_folder):
             )
             response.raise_for_status()
         except Exception:
+            crawled_pages.append({
+                "Page URL": current_url,
+                "HTTP Status": "failed",
+                "Page Title": "",
+                "PDFs Found On Page": 0
+            })
             continue
 
         soup = BeautifulSoup(response.text, "html.parser")
+        page_title = get_page_title(soup)
+        pdfs_found_on_this_page = 0
 
         for link in soup.find_all("a", href=True):
             href = link["href"]
@@ -291,6 +344,7 @@ def crawl_site(start_url, job_folder):
                 is_pdf, check_status, resolved_url, content_type = check_pdf_link(absolute_url)
 
                 if is_pdf:
+                    pdfs_found_on_this_page += 1
                     is_duplicate = resolved_url in seen_pdf_urls
 
                     if is_duplicate:
@@ -346,9 +400,16 @@ def crawl_site(start_url, job_folder):
                 if absolute_url not in visited_pages and absolute_url not in pages_to_visit:
                     pages_to_visit.append(absolute_url)
 
+        crawled_pages.append({
+            "Page URL": current_url,
+            "HTTP Status": response.status_code,
+            "Page Title": page_title,
+            "PDFs Found On Page": pdfs_found_on_this_page
+        })
+
         time.sleep(REQUEST_DELAY)
 
-    save_excel_log(pdf_records, excel_path)
+    save_excel_log(pdf_records, crawled_pages, excel_path)
 
     zip_path = shutil.make_archive(
         zip_base,
