@@ -277,6 +277,7 @@ def save_excel_log(pdf_records, crawled_pages, excel_path):
 
 
 def crawl_site(start_url, job_folder):
+    crawl_start_time = time.time()
     start_url = normalise_url(start_url)
     allowed_domain = get_allowed_domain(start_url)
     allowed_path_prefix = get_allowed_path_prefix(start_url)
@@ -417,4 +418,25 @@ def crawl_site(start_url, job_folder):
         job_folder
     )
 
+    failed_downloads = sum(
+        1 for record in pdf_records
+        if str(record.get("Status", "")).startswith("failed")
+    )
+    
+    duplicate_references = sum(
+        1 for record in pdf_records
+        if record.get("Duplicate?") == "Yes"
+    )
+    
+    summary = {
+        "pages_crawled": len(crawled_pages),
+        "page_limit_reached": "Yes" if len(visited_pages) >= MAX_PAGES else "No",
+        "unique_pdfs_found": len(seen_pdf_urls),
+        "pdf_limit_reached": "Yes" if len(seen_pdf_urls) >= MAX_PDFS else "No",
+        "pdf_records": len(pdf_records),
+        "duplicate_references": duplicate_references,
+        "failed_downloads": failed_downloads,
+        "crawl_duration_seconds": round(time.time() - crawl_start_time)
+    }
+    
     return zip_path, summary
