@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>PDF Crawler</title>
+  <title>NSW PDF Crawler</title>
 
   <style>
     body {
@@ -56,6 +56,23 @@
       border: 1px solid #4caf50;
     }
 
+    .summary-box {
+      display: none;
+      margin-top: 24px;
+      padding: 16px;
+      background: #f7f7f7;
+      border: 1px solid #ccc;
+    }
+
+    .summary-box h2 {
+      margin-top: 0;
+    }
+
+    .summary-box ul {
+      padding-left: 20px;
+      margin-bottom: 0;
+    }
+
     .spinner {
       display: inline-block;
       width: 18px;
@@ -82,7 +99,7 @@
 </head>
 
 <body>
-  <h1>PDF Crawler</h1>
+<h1>PDF Crawler</h1>
 
   <h3>By Praveen Kumar</h3>
 
@@ -125,10 +142,24 @@
     <p>You can now run another crawl.</p>
   </div>
 
+  <div id="summaryBox" class="summary-box">
+    <h2>Crawl summary</h2>
+    <ul>
+      <li>Pages crawled: <span id="pagesCrawled"></span></li>
+      <li>Page limit reached: <span id="pageLimitReached"></span></li>
+      <li>Unique PDFs found: <span id="uniquePdfs"></span></li>
+      <li>PDF limit reached: <span id="pdfLimitReached"></span></li>
+      <li>PDF records: <span id="pdfRecords"></span></li>
+      <li>Duplicate references: <span id="duplicateReferences"></span></li>
+      <li>Failed downloads: <span id="failedDownloads"></span></li>
+      <li>Crawl duration: <span id="crawlDuration"></span></li>
+    </ul>
+  </div>
+
   <div id="errorBox" class="error"></div>
 
   <p class="hint">
-    Please be patient as your crawl may take a while, especially with larger sections.
+    Only nsw.gov.au URLs are allowed.
   </p>
 
   <script>
@@ -136,6 +167,7 @@
     const button = document.getElementById("submitButton");
     const progressBox = document.getElementById("progressBox");
     const successBox = document.getElementById("successBox");
+    const summaryBox = document.getElementById("summaryBox");
     const errorBox = document.getElementById("errorBox");
 
     function setLoading(isLoading) {
@@ -144,11 +176,48 @@
       progressBox.style.display = isLoading ? "block" : "none";
     }
 
+    function formatDuration(secondsTotal) {
+      const minutes = Math.floor(secondsTotal / 60);
+      const seconds = secondsTotal % 60;
+      return `${minutes}m ${seconds}s`;
+    }
+
+    function updateSummary(response) {
+      const durationSeconds = Number(response.headers.get("X-Crawl-Duration-Seconds") || 0);
+
+      document.getElementById("pagesCrawled").textContent =
+        response.headers.get("X-Pages-Crawled") || "0";
+
+      document.getElementById("pageLimitReached").textContent =
+        response.headers.get("X-Page-Limit-Reached") || "No";
+
+      document.getElementById("uniquePdfs").textContent =
+        response.headers.get("X-Unique-PDFs") || "0";
+
+      document.getElementById("pdfLimitReached").textContent =
+        response.headers.get("X-PDF-Limit-Reached") || "No";
+
+      document.getElementById("pdfRecords").textContent =
+        response.headers.get("X-PDF-Records") || "0";
+
+      document.getElementById("duplicateReferences").textContent =
+        response.headers.get("X-Duplicate-References") || "0";
+
+      document.getElementById("failedDownloads").textContent =
+        response.headers.get("X-Failed-Downloads") || "0";
+
+      document.getElementById("crawlDuration").textContent =
+        formatDuration(durationSeconds);
+
+      summaryBox.style.display = "block";
+    }
+
     form.addEventListener("submit", async function (event) {
       event.preventDefault();
 
       setLoading(true);
       successBox.style.display = "none";
+      summaryBox.style.display = "none";
       errorBox.style.display = "none";
       errorBox.textContent = "";
 
@@ -164,6 +233,8 @@
           const errorText = await response.text();
           throw new Error(errorText || "The crawl failed.");
         }
+
+        updateSummary(response);
 
         const blob = await response.blob();
 
