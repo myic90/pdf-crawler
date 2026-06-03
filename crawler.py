@@ -15,8 +15,8 @@ HEADERS = {
 }
 
 REQUEST_DELAY = 0.1
-MAX_PAGES = 150
-MAX_PDFS = 300
+MAX_PAGES = 500
+MAX_PDFS = 1000
 
 
 def normalise_url(url):
@@ -125,7 +125,7 @@ def download_pdf(pdf_url, output_folder):
     response = requests.get(
         pdf_url,
         headers=HEADERS,
-        timeout=60,
+        timeout=(10,60),
         allow_redirects=True,
         stream=True
     )
