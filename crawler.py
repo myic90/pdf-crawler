@@ -417,4 +417,4 @@ def crawl_site(start_url, job_folder):
         job_folder
     )
 
-    return zip_path
+    return zip_path, summary
